@@ -161,8 +161,7 @@ int main(int argc, char *argv[]) {
 
 
     if (argc < 2) {
-        cout << "Usage: " << prgm << " <infile(s)>\n\n"
-             << "Best to have corresponding IPH file in same folder\n"
+        cout << "Usage: " << prgm << " <infile(s)>\n"
              << endl;
     }
     else {
