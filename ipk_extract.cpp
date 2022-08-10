@@ -22,7 +22,7 @@ using std::vector;
 using std::remove;
 
 
-int extractIPK(ifstream &file, int secdex) {
+int fromIPK(ifstream &file, int secdex) {
     uint32_t something0;                                                        // 32 bit le, Something
     uint32_t contentSize;                                                       // 32 bit le, Number of files in IPK file
     uint32_t fileSize;                                                          // 32 bit le, Size of current IPK file
@@ -94,7 +94,7 @@ int extractIPK(ifstream &file, int secdex) {
             _chdir((temp_name.substr(0, temp_name.find_last_of("\\/") + 1)).c_str());
 
             cout << "\tContents of " << temp_name << endl;
-            ipkFileFound += extractIPK(file, secdex + temp_data_addr);
+            ipkFileFound += fromIPK(file, secdex + temp_data_addr);
 
             cout << "\tEnd of " << temp_name << endl;
 
@@ -104,9 +104,9 @@ int extractIPK(ifstream &file, int secdex) {
         fileFound += 1;
     }
 
-    fileFound += ipkFileFound;
+    ipkFileFound += contentSize;
 
-    return fileFound;
+    return ipkFileFound;
 }
 
 void searchIPK(string ipk_filename) {
@@ -137,7 +137,7 @@ void searchIPK(string ipk_filename) {
     file.read(chunk, sizeof(uint32_t));
 
     if (string(chunk) == IPK1) {
-        num_content = extractIPK(file, index);
+        num_content = fromIPK(file, index);
     }
     else {
         cout << ipk_filename << " is not an IPK file\n\n" << endl;
