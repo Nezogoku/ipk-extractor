@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    _sleep(600);
+    _sleep(250);
 
     return 0;
 }
