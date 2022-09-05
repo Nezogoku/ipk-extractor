@@ -41,7 +41,7 @@ int fromIPK(ifstream &file, int secdex) {
 
     char buff;
     while (file.get(buff) && fileFound < contentSize) {
-        // Get name and path of file being extracted
+        // Get path and name of file being extracted
         file.seekg(workAddr);
         string temp_name;
         while(true) {
@@ -49,7 +49,17 @@ int fromIPK(ifstream &file, int secdex) {
             if (buff == 0x00) break;
             temp_name += buff;
         }
-        workAddr += 0x44;
+        workAddr += 0x40;
+
+        // Get value that determines whether file is compressed (32 bit le)
+        file.seekg(workAddr);
+        uint32_t temp_isCompressed;
+        file.read((char*)(&temp_isCompressed), sizeof(uint32_t));
+        if (temp_isCompressed) {
+            cout << temp_name << " is compressed" << endl;
+            temp_name += ".lzblinx";
+        }
+        workAddr += 0x04;
 
         // Get size of file being extracted (32 bit le)
         file.seekg(workAddr);
@@ -61,7 +71,13 @@ int fromIPK(ifstream &file, int secdex) {
         file.seekg(workAddr);
         uint32_t temp_data_addr;
         file.read((char*)(&temp_data_addr), sizeof(uint32_t));
-        workAddr += 0x08;
+        workAddr += 0x04;
+
+        // Get uncompressed size of file being extracted (32 bit le)
+        file.seekg(workAddr);
+        uint32_t temp_size_uncompressed;
+        file.read((char*)(&temp_size_uncompressed), sizeof(uint32_t));
+        workAddr += 0x04;
 
 
         // Get data of file being extracted
@@ -86,7 +102,7 @@ int fromIPK(ifstream &file, int secdex) {
         }
         extr_out.close();
 
-        cout << "Extracted " << temp_name << endl;
+        cout << "Extracted to " << temp_name << endl;
 
 
         // Extract IPK from current IPK
@@ -102,6 +118,7 @@ int fromIPK(ifstream &file, int secdex) {
         }
 
         fileFound += 1;
+        cout << endl;
     }
 
     ipkFileFound += contentSize;
