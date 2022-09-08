@@ -1,10 +1,11 @@
+#include <fstream>
 #include <iostream>
 #include <algorithm>
 #include <fstream>
 #include <vector>
 #include <string>
 #include <direct.h>
-
+#include "lzss/lzss.h"
 
 using std::cout;
 using std::cerr;
@@ -21,6 +22,16 @@ using std::to_string;
 using std::vector;
 using std::remove;
 
+bool fileExists(string name) {
+    bool exists = false;
+    ifstream check(name.c_str());
+    if (check.is_open()) {
+        check.close();
+        exists = true;
+    }
+
+    return exists;
+}
 
 int fromIPK(ifstream &file, int secdex) {
     uint32_t something0;                                                        // 32 bit le, Something
@@ -55,10 +66,6 @@ int fromIPK(ifstream &file, int secdex) {
         file.seekg(workAddr);
         uint32_t temp_isCompressed;
         file.read((char*)(&temp_isCompressed), sizeof(uint32_t));
-        if (temp_isCompressed) {
-            cout << temp_name << " is compressed" << endl;
-            temp_name += ".lzblinx";
-        }
         workAddr += 0x04;
 
         // Get size of file being extracted (32 bit le)
@@ -93,30 +100,44 @@ int fromIPK(ifstream &file, int secdex) {
             }
         }
 
-        // Extract file
-        ofstream extr_out(temp_name.c_str(), ios::binary);
-        file.seekg(secdex + temp_data_addr);
-        for(int ind = 0; ind < temp_size; ++ind) {
-            file.get(buff);
-            extr_out.put(buff);
+        if (fileExists(temp_name)) {
+            cout << temp_name << " already exists" << endl;
         }
-        extr_out.close();
+        else {
+            // Extract file
+            if (temp_isCompressed) temp_name += ".lzs";
+            ofstream extr_out(temp_name.c_str(), ios::binary);
+            file.seekg(secdex + temp_data_addr);
+            for(int ind = 0; ind < temp_size; ++ind) {
+                file.get(buff);
+                extr_out.put(buff);
+            }
+            extr_out.close();
+            cout << "Extracted " << temp_name << endl;
 
-        cout << "Extracted to " << temp_name << endl;
+
+            //Decompress Blinx2 LZS files
+            if (temp_isCompressed) {
+                lzss(temp_name.c_str(), temp_name.substr(0, temp_name.find_last_of('.')).c_str());
+                cout << "Decompressed " << temp_name << endl;
+                remove(temp_name.c_str());
+            }
 
 
-        // Extract IPK from current IPK
-        if (temp_name.substr(temp_name.size() - 4) == ".ipk") {
-            _chdir((temp_name.substr(0, temp_name.find_last_of("\\/") + 1)).c_str());
+            // Extract IPK from current IPK
+            if (temp_name.substr(temp_name.find_last_of('.')) == ".ipk") {
+                _chdir((temp_name.substr(0, temp_name.find_last_of("\\/") + 1)).c_str());
+                temp_name = temp_name.substr(temp_name.find_last_of("\\/") + 1);
 
-            cout << "\tContents of " << temp_name << endl;
-            ipkFileFound += fromIPK(file, secdex + temp_data_addr);
+                cout << "\tContents of " << temp_name << endl;
+                ipkFileFound += fromIPK(file, secdex + temp_data_addr);
 
-            cout << "\tEnd of " << temp_name << endl;
+                cout << "\tEnd of " << temp_name << endl;
+                remove(temp_name.c_str());
 
-            for (int c = 0; c < num_change; ++c) _chdir("..");
+                for (int c = 0; c < num_change; ++c) _chdir("..");
+            }
         }
-
         fileFound += 1;
         cout << endl;
     }
@@ -179,8 +200,6 @@ int main(int argc, char *argv[]) {
             searchIPK(argv[fileIndex]);
         }
     }
-
-    _sleep(250);
 
     return 0;
 }
