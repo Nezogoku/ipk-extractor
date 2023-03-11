@@ -1,0 +1,30 @@
+COMPRESSED CHUNKS
+    Data buffer with size 4069
+    8 flag bits, 8-16 data bytes
+    
+    FLAG
+        1 is raw byte
+        0 is copy address + copy counter from following short (0xABCD)
+            ADDRESS:
+            Add 12 bits from short in LE (0x0CAB) to constructed address
+                AND out least-significant nibble in least-significant byte
+                Nibbles in least-significant byte are then swapped
+            
+            COUNTER:
+            Add 4 bits from short in BE (0x000D) to constructed counter
+        
+        If amount bits greater than remaining data bytes, leave remaining as 0
+    
+    DATA BYTES
+        FLAG 1
+            Raw is 0xAB
+            Raw added to data buffer (wrap-around)
+        FLAG 0
+            Copy address is 0x0CAB
+            Counter is 0x000D
+            
+            COUNTER:
+                LOOP COUNTER + 3 TIMES:
+                    Copied from data buffer is 0xAB
+                    Copied added to data buffer (wrap-around)
+                    Increment copy address and destination address by 1
