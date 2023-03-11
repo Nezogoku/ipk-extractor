@@ -40,6 +40,17 @@ static bool cmpChar(uchar *src0, const char *src1, int length) {
     return true;
 }
 
+///Set variable big-endian int to array
+static void setBeInt(uchar *&src0, const unsigned int src1, int length) {
+    for (int c = 0; c < length; ++c) src0[(length - 1) - c] = src1 >> (8 * c);
+}
+
+///Set variable little-endian int to array
+static void setLeInt(uchar *&src0, const unsigned int src1, int length) {
+    unsigned int src2 = setReverse(src1, length);
+    setBeInt(src0, src2, length);
+}
+
 ///Convert float to hex
 static unsigned int float2hex(float tune) {
     unsigned int out_hex = 0;
