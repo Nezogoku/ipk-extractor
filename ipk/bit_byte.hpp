@@ -32,6 +32,11 @@ static unsigned int getLeInt(uchar *&src, int length) {
     return setReverse(out, length);
 }
 
+///Get bit from char and update shift
+static bool cmpBits(uchar data, int &shift) {
+    return (data >> shift--) & 0x01;
+}
+
 ///Compare variable char from array to char array
 static bool cmpChar(uchar *src0, const char *src1, int length) {
     for (int s = 0; s < length; ++s) {
