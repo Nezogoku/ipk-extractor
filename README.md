@@ -36,7 +36,7 @@ Additionally, an ipklog file will be produced storing the following information:
 # .ipklog files
 All ipklogs are text files storing information used to create a new ipk and corresponding iph file.
 New files will share a name with their corresponding ipklog file.
-Each extension will bw appended with '.new' to prevent overwrites.
+Each extension will be appended with '.new' to prevent overwrites.
 
 
 # (de)compression
