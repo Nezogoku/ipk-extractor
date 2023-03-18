@@ -8,7 +8,7 @@ Unpacks and decompresses all files. Additionally recompresses and repacks files.
 
 # .ipk files
 All ipk files entered will be unpacked and decompressed into corresponding root folders,
-each foldere sharing a name with their corresponding ipk file.
+each folder sharing a name with their corresponding ipk file.
 Additionally, an ipklog file will be produced storing the following information:
     
     Root initializer:
