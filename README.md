@@ -40,4 +40,4 @@ Each extension will be appended with '.new' to prevent overwrites.
 
 
 # (de)compression
-Slightly-editted Saxman decompression and compression codes pulled from https://segaretro.org/Saxman_compression because Sega.
+Slightly-edited Saxman decompression and compression codes pulled from https://segaretro.org/Saxman_compression because Sega.
