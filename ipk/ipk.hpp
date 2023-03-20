@@ -1,5 +1,5 @@
-#ifndef BLINXLZSS_HPP
-#define BLINXLZSS_HPP
+#ifndef IPK_HPP
+#define IPK_HPP
 
 #include <string>
 
