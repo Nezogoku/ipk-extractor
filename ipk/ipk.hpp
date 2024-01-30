@@ -3,7 +3,7 @@
 
 #include <string>
 #include "stringstream.hpp"
-#include "lzss_shared.hpp"
+#include "lzss\lzss_shared.hpp"
 
 class ipk : protected blzss {
     public:
