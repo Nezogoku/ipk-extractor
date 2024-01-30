@@ -3,25 +3,27 @@
 
 #include <cstdio>
 #include <errno.h>
-#ifdef _WIN32
+#if defined(_MSC_VER) || defined(WIN32) || defined(_WIN32) || defined(__WIN32__) \
+                      || defined(WIN64) || defined(_WIN64) || defined(__WIN64__)
     #include <direct.h>
+    #define mkdir(filename) _mkdir(filename)
 #else
     #include <sys/stat.h>
     #include <sys/types.h>
-    #define _mkdir(filename) mkdir(filename, 0777)
+    #define mkdir(filename) mkdir(filename, 0777)
 #endif
 
 
 ///Create a folder
 static int createFolder(const char *folder) {
     int ret = 1;
-    if (_mkdir(folder) < 0) ret = (errno == EEXIST);
+    if (mkdir(folder) < 0) ret = (errno == EEXIST);
 
     return ret;
 }
 
 ///Write binary to a file
-static int createFile(const char *file, unsigned char *data, uint32_t data_size) {
+static int createFile(const char *file, unsigned char *data, unsigned data_size) {
     int ret = 1;
 
     FILE *out = fopen(file, "wb");
@@ -36,12 +38,20 @@ static int createFile(const char *file, unsigned char *data, uint32_t data_size)
 }
 
 ///Write C-style string to a file
-static int createFile(const char *file, const char *data, uint32_t data_size) {
+static int createFile(const char *file, const char *data, unsigned data_size) {
     return createFile(file, (unsigned char*)data, data_size);
 }
 
+///Delete a file
+static int removeFile(const char *file) {
+    int ret = 1;
+    if (remove(file) < 0) ret = (errno == ENOENT);
+
+    return ret;
+}
+
 ///Get data from a file
-static int getFileData(const char *file, unsigned char *&data, uint32_t &data_size) {
+static int getFileData(const char *file, unsigned char *&data, unsigned &data_size) {
     int ret = 1;
 
     FILE *in = fopen(file, "rb");

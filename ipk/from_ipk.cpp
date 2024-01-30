@@ -1,42 +1,125 @@
-#include <cstdint>
 #include <cstdio>
 #include <string>
+#include <variant>
 #include "directory.hpp"
-#include "bit_byte.hpp"
-#include "lzss/lzss.hpp"
+#include "lzss_shared.hpp"
 #include "ipk.hpp"
 
 
-int fromIPK(std::string &outlog, unsigned char *idata, unsigned isize, const char *iroot) {
-    uchar *istart = idata, *hstart = istart + 0x10, *obuffer = 0, *odata;
+template<typename... Args>
+std::string ipk::formatStr(const char *in, Args... args) {
+    std::string stmp = "";
+    std::variant<std::string, unsigned int, int> ftmp[] = {args...};
 
-    if (!cmpChar(idata, "IPK1", 4)) { fprintf(stderr, "Not an IPK file\n"); return 0; }
+    while (in[0]) {
+        if (in[0] == '{') {
+            int p = in[1] - '0';
+            switch(ftmp[p].index()) {
+                case 0:
+                    stmp += std::get<0>(ftmp[p]);
+                    break;
+                case 1:
+                    if (in[2] == 'X') {
+                        const char HEX[] = "0123456789ABCDEF";
+                        std::string tmp = "";
+                        unsigned num = std::get<1>(ftmp[p]);
+                        while (num) {
+                            tmp = HEX[num % 16] + tmp;
+                            num /= 16;
+                        }
+                        num = in[3] - '0';
+                        if (!tmp.empty()) num = ((num - (tmp.length() % num)) % num);
+                        stmp += "0x" + std::string(num, '0') + tmp;
+
+                        in += 2;
+                    }
+                    else if (in[2] == 'D') {
+                        std::string tmp = std::to_string(std::get<1>(ftmp[p]));
+                        unsigned num = in[3] - '0';
+                        num = ((num - (tmp.length() % num)) % num);
+                        stmp += std::string(num, '0') + tmp;
+
+                        in += 2;
+                    }
+                    else stmp += std::to_string(std::get<1>(ftmp[p]));
+                    break;
+                case 2:
+                    stmp += std::to_string(std::get<2>(ftmp[p]));
+                    break;
+                default:
+                    stmp += *(in++);
+                    continue;
+            }
+            in += 3;
+        }
+        else stmp += *(in++);
+    }
+    return stmp;
+}
+
+
+int ipk::fromIPK(unsigned char *idata, unsigned isize, std::string iroot) {
+    struct ipk1_info {
+        //const char ipk1[4] {'I','P','K','1'};
+        unsigned align;
+        unsigned ennum;
+        unsigned rfsiz;
+    } iinfo;
+
+    unsigned ent = 0;
+    unsigned char *ibeg = idata, *iend = ibeg + isize;
+    auto get_int = [&]() -> unsigned int {
+        unsigned int out = 0, i = 0;
+        while (i < 4) out |= (unsigned int)*(idata++) << (8 * i++);
+        return out;
+    };
+
+    if (std::string(idata, idata + 4) != "IPK1") {
+        fprintf(stderr, "Not an IPK file\n");
+        return 0;
+    }
     else idata += 4;
-    uint32_t alignment = getLeInt(idata, 4);        // File alignment
-    uint32_t entryNum = getLeInt(idata, 4);         // Number of files in IPK file
-    if (isize < getLeInt(idata, 4)) return 0;       // Size of current IPK file
+    iinfo.align = get_int();    // File alignment
+    iinfo.ennum = get_int();    // Number of files in IPK file
+    iinfo.rfsiz = get_int();    // Size of current IPK file
+    if (isize < iinfo.rfsiz) {
+        fprintf(stderr, "File size smaller than expected\n");
+        return 0;
+    }
 
-    int ifNum = 0;
+    this->outLog += formatStr("ROOT_FOLDER           \"{0}\"\n", iroot);
+    this->outLog += formatStr("ALIGNMENT             {0}\n", iinfo.align);
+    this->outLog += formatStr("AMOUNT_ENTRIES        {0}\n", iinfo.ennum);
 
-    outlog += getFData("ROOT_FOLDER           \"%s\"\n", iroot);
-    outlog += getFData("ALIGNMENT             %d\n", alignment);
-    outlog += getFData("AMOUNT_ENTRIES        %d\n", entryNum);
 
-    for (int e = 0; e < entryNum; ++e) {
-        idata = hstart + (e * 0x50);
+    struct file_info {
+        std::string fpath;  // Path and file name
+        bool fcomp;         // Is compressed
+        unsigned fsize;     // Data size (compressed)
+        unsigned foffs;     // Data offset
+        unsigned rsize;     // Data size (uncompressed)
+    } finfo[iinfo.ennum] {};
 
-        //File definitions
-        std::string path = {idata, idata + 64};     //Path and file name
-        idata += 64;
-        bool compressed = getLeInt(idata, 4);       //Is compressed
-        uint32_t fsize = getLeInt(idata, 4);        //Data size (compressed)
-        uint32_t foffs = getLeInt(idata, 4);        //Data offset
-        uint32_t rsize = getLeInt(idata, 4);        //Data size (uncompressed)
+    idata = ibeg + 0x10;
+    for (auto &inf : finfo) {
+        inf.fpath = (const char*)idata; idata += 64;
+        inf.fcomp = get_int();
+        inf.fsize = get_int();
+        inf.foffs = get_int();
+        inf.rsize = get_int();
+    }
 
-        std::string fname = path.substr(path.find_last_of("\\/") + 1),
-                    fpath = path.substr(0, path.find_last_of("\\/") + 1);
+    iinfo.ennum = 0;
+    for (auto &inf : finfo) {
+        idata = ibeg + inf.foffs;
+        if (idata >= iend || (idata + inf.fsize) > iend || !inf.rsize) continue;
 
-        outlog += getFData("%-4d ENTRY_PATH            \"%s\"\n", e, path.c_str());
+        std::string fname = inf.fpath.substr(inf.fpath.find_last_of("\\/") + 1),
+                    fpath = inf.fpath.substr(0, inf.fpath.find_last_of("\\/") + 1);
+        unsigned char *odata = 0;
+        unsigned osize = inf.rsize;
+
+        this->outLog += formatStr("{0} ENTRY_PATH            \"{1}\"\n", ent++, inf.fpath);
 
         //Create necessary folders
         for (int pos = 0;;) {
@@ -49,73 +132,61 @@ int fromIPK(std::string &outlog, unsigned char *idata, unsigned isize, const cha
             createFolder(npath.c_str());
         }
 
-        //Decompress Blinx2 LZSS file if applicable
-        if (compressed) {
-            if (obuffer) { delete[] obuffer; obuffer = 0; }
-            obuffer = new uchar[rsize] {};
-
-            decompressLZSS(istart + foffs, fsize, obuffer, rsize);
-            odata = obuffer;
+        //Decompress LZSS if applicable
+        if (!inf.fcomp) odata = idata;
+        else {
+            odata = new unsigned char[inf.rsize] {};
+            decompress(idata, inf.fsize, odata, osize);
         }
-        else odata = istart + foffs;
+        fpath = iroot + inf.fpath;
 
-        path = iroot + path;
-
-        //Extract embedded IPK or data
-        if (cmpChar(odata, "IPK1", 4)) {
-            outlog += getFData("START_EMBEDDED_IPK    \"%s\"\n", fname.c_str());
-            outlog += getFData("EMBEDDED_IPK_SIZE     %d\n", rsize);
-
-            fprintf(stdout, "START OF EMBEDDED %s\n", fname.c_str());
-            ifNum += fromIPK(outlog, odata, rsize, iroot);
-            fprintf(stdout, "END OF EMBEDDED %s\n", fname.c_str());
-
-            outlog += getFData("END_EMBEDDED_IPK      \"%s\"\n", fname.c_str());
+        //Extract data
+        if (std::string(odata, odata + 4) != "IPK1") {
+            if (!createFile(fpath.c_str(), odata, osize));
+            else {
+                fprintf(stdout, "    EXTRACTED %s\n", fname.c_str());
+                iinfo.ennum += 1;
+            }
         }
         else {
-            if (!createFile(path.c_str(), odata, rsize)) continue;
-            else ifNum += 1;
+            this->outLog += formatStr("START_EMBEDDED_IPK    \"{0}\"\n", fname);
+            this->outLog += formatStr("EMBEDDED_IPK_SIZE     {0}\n", osize);
 
-            fprintf(stdout, "    EXTRACTED %s\n", fname.c_str());
+            fprintf(stdout, "START OF EMBEDDED %s\n", fname.c_str());
+            iinfo.ennum += fromIPK(odata, osize, iroot);
+            fprintf(stdout, "END OF EMBEDDED %s\n", fname.c_str());
+
+            this->outLog += formatStr("END_EMBEDDED_IPK      \"{0}\"\n", fname);
         }
+
+        if (inf.fcomp) delete[] odata;
     }
 
-    return ifNum;
+    return iinfo.ennum;
 }
 
-void searchIPK(std::string ipkname) {
-    std::string root = ipkname.substr(0, ipkname.find_last_of("\\/") + 1),
-                name = ipkname.substr(ipkname.find_last_of("\\/") + 1),
-                froot = getFData("%s@%s/", root.c_str(), name.substr(0, name.find_last_of('.')).c_str()),
-                lname = name.substr(0, name.find_last_of('.')) + ".ipklog",
-                ipk_outlog = "";
-
-    uchar *ipk_data = 0;
-    uint32_t ipk_size;
+void ipk::searchIPK(std::string root, std::string name, unsigned char *fdat, unsigned fsiz) {
+    std::string froot = formatStr("{0}@{1}/", root, name.substr(0, name.find_last_of('.'))),
+                lname = name.substr(0, name.find_last_of('.')) + ".ipklog";
 
     if (!createFolder(froot.c_str())) {
         fprintf(stderr, "Unable to create root folder\n");
         return;
     }
-    else if (!getFileData(ipkname.c_str(), ipk_data, ipk_size)) {
-        fprintf(stderr, "Unable to open %s\n", name.c_str());
-        return;
-    }
 
     //Log setup
-    ipk_outlog += getFData("START_ROOT_IPK        \"%s\"\n", name.c_str());
-    ipk_outlog += getFData("ROOT_IPK_SIZE         %d\n", ipk_size);
+    this->outLog = "";
+    this->outLog += formatStr("START_ROOT_IPK        \"{0}\"\n", name);
+    this->outLog += formatStr("ROOT_IPK_SIZE         {0}\n", fsiz);
 
     fprintf(stdout, "START OF %s\n", name.c_str());
-    int fcount = fromIPK(ipk_outlog, ipk_data, ipk_size, froot.c_str());
+    int fcount = fromIPK(fdat, fsiz, froot);
     fprintf(stdout, "END OF %s\n\n", name.c_str());
 
-    ipk_outlog += getFData("END_ROOT_IPK          \"%s\"\n", name.c_str());
+    this->outLog += formatStr("END_ROOT_IPK          \"{0}\"\n", name);
 
-    if (!createFile((root + lname).c_str(), ipk_outlog.c_str(), ipk_outlog.length())) {
+    if (!createFile((root + lname).c_str(), this->outLog.c_str(), this->outLog.length())) {
         fprintf(stderr, "Unable to save %s\n", lname.c_str());
-        return;
     }
-
     fprintf(stdout, "%d total files found and extracted\n\n", fcount);
 }
