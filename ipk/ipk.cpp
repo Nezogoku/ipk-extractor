@@ -5,7 +5,14 @@
 #include "ipk.hpp"
 
 
+void ipk::reset() {
+    this->outLog = "";
+    this->inLog = sstream();
+}
+
 void ipk::searchFile(std::string filename, int filetyp) {
+    reset();
+    
     std::string root = filename.substr(0, filename.find_last_of("\\/") + 1),
                 name = filename.substr(filename.find_last_of("\\/") + 1);
 
@@ -19,12 +26,10 @@ void ipk::searchFile(std::string filename, int filetyp) {
     
     if (filetyp == 0) searchIPK(root, name, fdata, fsize);
     else if (filetyp == 1) {
-        sstream tmp(fdata, fsize);
-        this->inLog = &tmp;
+        this->inLog = sstream(fdata, fsize);
         searchLOG(root, name);
-        this->inLog = 0;
     }
     else fprintf(stderr, "%s is not a supported file type\n", name.c_str());
     
-    delete[] fdata;
+    if (fdata) delete[] fdata;
 }

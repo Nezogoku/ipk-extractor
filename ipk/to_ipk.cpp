@@ -8,13 +8,16 @@
 int ipk::toIPK(std::string iroot, unsigned ialign, unsigned ientries, unsigned level, unsigned char *out) {
     std::string tmpS;
     unsigned dat_offs = 0x10 + (ientries * 0x50), tmpN;
-    auto set_int = [](unsigned char *out, const unsigned int src1) -> void {
+    auto set_str = [](unsigned char *out, const char *src1) -> void {
+        for (int i = 0; i < 4; ++i) out[i] = src1[i];
+    };
+    auto set_int = [](unsigned char *out, const unsigned src1) -> void {
         for (int i = 0; i < 4; ++i) out[i] = (src1 >> (8 * i)) & 0xFF;
     };
 
     dat_offs += (!ialign) ? 0 : (ialign - (dat_offs % ialign)) % ialign;
 
-    std::string("IPK1").copy((char*)out, 4);
+    set_str(out + 0x00, "IPK1");
     set_int(out + 0x04, ialign);
     set_int(out + 0x08, ientries);
     set_int(out + 0x0C, dat_offs);
@@ -22,16 +25,16 @@ int ipk::toIPK(std::string iroot, unsigned ialign, unsigned ientries, unsigned l
     //Get and apply entry info
     for (int e = 0; e < ientries; ++e) {
         std::string fpath, fname, fext;
-        unsigned hoffs, fsize, foffs, rsize;
+        unsigned hoffs = 0, fsize = 0, foffs = 0, rsize = 0;
         unsigned char *fdata = 0;
 
         //Get entry header info
-        tmpN = this->inLog->getUnsigned();
+        tmpN = this->inLog.getUnsigned();
         if (tmpN >= ientries) return 0;
         else hoffs = 0x10 + (tmpN * 0x50);
 
         //Get entry info
-        tmpS = this->inLog->getString(0, "ENTRY_PATH");
+        tmpS = this->inLog.getString(0, "ENTRY_PATH");
         if (tmpS.empty()) {
             fprintf(stderr, "Invalid IPK entry: path name missing\n");
             return 0;
@@ -60,7 +63,7 @@ int ipk::toIPK(std::string iroot, unsigned ialign, unsigned ientries, unsigned l
             unsigned talign, tentries;
 
             //Get embedded IPK header
-            tmpS = this->inLog->getString(0, "START_EMBEDDED_IPK");
+            tmpS = this->inLog.getString(0, "START_EMBEDDED_IPK");
             if (tmpS.empty()) {
                 fprintf(stderr, "Invalid embedded IPK: missing initializer\n");
                 return 0;
@@ -73,12 +76,12 @@ int ipk::toIPK(std::string iroot, unsigned ialign, unsigned ientries, unsigned l
             //Get embedded IPK info
             has_size = has_root = has_align = has_num = is_success = false;
             for (int t = 0; t < 4; ++t) {
-                tmpS = this->inLog->getString();
+                tmpS = this->inLog.getString();
 
-                if (tmpS == "EMBEDDED_IPK_SIZE" && (int)(rsize = this->inLog->getUnsigned()) > 0) has_size = true;
-                else if (tmpS == "ROOT_FOLDER" && !(troot = this->inLog->getString()).empty()) has_root = true;
-                else if (tmpS == "ALIGNMENT" && (int)(talign = this->inLog->getUnsigned()) >= 0) has_align = true;
-                else if (tmpS == "AMOUNT_ENTRIES" && (int)(tentries = this->inLog->getUnsigned()) > 0) has_num = true;
+                if (tmpS == "EMBEDDED_IPK_SIZE" && (int)(rsize = this->inLog.getUnsigned()) > 0) has_size = true;
+                else if (tmpS == "ROOT_FOLDER" && !(troot = this->inLog.getString()).empty()) has_root = true;
+                else if (tmpS == "ALIGNMENT" && (int)(talign = this->inLog.getUnsigned()) >= 0) has_align = true;
+                else if (tmpS == "AMOUNT_ENTRIES" && (int)(tentries = this->inLog.getUnsigned()) > 0) has_num = true;
                 else break;
             }
             
@@ -98,7 +101,7 @@ int ipk::toIPK(std::string iroot, unsigned ialign, unsigned ientries, unsigned l
                     }
 
                     //Get embedded IPK footer
-                    tmpS = this->inLog->getString(0, "END_EMBEDDED_IPK");
+                    tmpS = this->inLog.getString(0, "END_EMBEDDED_IPK");
                     if (tmpS.empty()) {
                         fprintf(stderr, "Invalid embedded IPK: missing terminator\n");
                         break;
@@ -129,6 +132,11 @@ int ipk::toIPK(std::string iroot, unsigned ialign, unsigned ientries, unsigned l
             fsize = rsize;
         }
         delete[] fdata;
+        
+        //Replace seperator with more the dumb one
+        while (fpath.find("/") != std::string::npos) {
+            fpath.replace(fpath.find("/"), 1, "\\");
+        }
 
         //Update entry info
         fpath.copy((char*)(out + hoffs), 64);
@@ -152,12 +160,7 @@ int ipk::toIPK(std::string iroot, unsigned ialign, unsigned ientries, unsigned l
 }
 
 void ipk::searchLOG(std::string root, std::string name) {
-    if (!this->inLog) {
-        fprintf(stderr, "Unable to parse IPKLOG file\n");
-        return;
-    }
-    
-    std::string tmp = this->inLog->getString(0, "START_ROOT_IPK"), iroot;
+    std::string tmp = this->inLog.getString(0, "START_ROOT_IPK"), iroot;
     bool has_size, has_root, has_align, has_num;
     unsigned isize, ialign, ientries;
 
@@ -169,18 +172,18 @@ void ipk::searchLOG(std::string root, std::string name) {
         fprintf(stderr, "Invalid IPK: invalid initializing name\n");
         return;
     }
-
+    
     has_size = has_root = has_align = has_num = false;
     for (int t = 0; t < 4; ++t) {
-        tmp = this->inLog->getString();
+        tmp = this->inLog.getString();
 
-        if (tmp == "ROOT_IPK_SIZE" && (int)(isize = this->inLog->getUnsigned()) > 0) has_size = true;
-        else if (tmp == "ROOT_FOLDER" && !(iroot = this->inLog->getString()).empty()) has_root = true;
-        else if (tmp == "ALIGNMENT" && (int)(ialign = this->inLog->getUnsigned()) >= 0) has_align = true;
-        else if (tmp == "AMOUNT_ENTRIES" && (int)(ientries = this->inLog->getUnsigned()) > 0) has_num = true;
+        if (tmp == "ROOT_IPK_SIZE" && (int)(isize = this->inLog.getUnsigned()) > 0) has_size = true;
+        else if (tmp == "ROOT_FOLDER" && !(iroot = this->inLog.getString()).empty()) has_root = true;
+        else if (tmp == "ALIGNMENT" && (int)(ialign = this->inLog.getUnsigned()) >= 0) has_align = true;
+        else if (tmp == "AMOUNT_ENTRIES" && (int)(ientries = this->inLog.getUnsigned()) > 0) has_num = true;
         else break;
     }
-
+    
     if (has_size && has_root && has_align && has_num) {
         isize = isize * 1.5;
         unsigned char *idata = new unsigned char[isize] {};
@@ -193,7 +196,7 @@ void ipk::searchLOG(std::string root, std::string name) {
             }
 
             //Ensure log is true IPKLOG file
-            tmp = this->inLog->getString(0, "END_ROOT_IPK");
+            tmp = this->inLog.getString(0, "END_ROOT_IPK");
             if (tmp.empty()) {
                 fprintf(stderr, "%s is not a true IPKLOG file: missing terminator\n", name.c_str());
                 break;

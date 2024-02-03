@@ -68,20 +68,25 @@ int ipk::fromIPK(unsigned char *idata, unsigned isize, std::string iroot) {
 
     unsigned ent = 0;
     unsigned char *ibeg = idata, *iend = ibeg + isize;
-    auto get_int = [&]() -> unsigned int {
-        unsigned int out = 0, i = 0;
-        while (i < 4) out |= (unsigned int)*(idata++) << (8 * i++);
+    auto cmp_str = [&](const char *in1, int length) -> bool {
+        while ((*(idata++) == (unsigned char)(*(in1++))) && --length);
+        return !length;
+    };
+    auto get_int = [&]() -> unsigned {
+        unsigned out = 0;
+        for (int i = 0; i < 4; ++i)
+            { out |= (unsigned)*(idata++) << (8 * i); }
         return out;
     };
 
-    if (std::string(idata, idata + 4) != "IPK1") {
+    if (!cmp_str("IPK1", 4)) {
         fprintf(stderr, "Not an IPK file\n");
         return 0;
     }
-    else idata += 4;
     iinfo.align = get_int();    // File alignment
     iinfo.ennum = get_int();    // Number of files in IPK file
     iinfo.rfsiz = get_int();    // Size of current IPK file
+    
     if (isize < iinfo.rfsiz) {
         fprintf(stderr, "File size smaller than expected\n");
         return 0;
@@ -119,6 +124,10 @@ int ipk::fromIPK(unsigned char *idata, unsigned isize, std::string iroot) {
         unsigned char *odata = 0;
         unsigned osize = inf.rsize;
 
+        //Replace seperator with more universal one
+        while (inf.fpath.find("\\") != std::string::npos) {
+            inf.fpath.replace(inf.fpath.find("\\"), 1, "/");
+        }
         this->outLog += formatStr("{0} ENTRY_PATH            \"{1}\"\n", ent++, inf.fpath);
 
         //Create necessary folders

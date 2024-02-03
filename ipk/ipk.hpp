@@ -3,17 +3,16 @@
 
 #include <string>
 #include "stringstream.hpp"
-#include "lzss\lzss_shared.hpp"
+#include "lzss_shared.hpp"
 
 class ipk : protected blzss {
     public:
-        ipk() { outLog = ""; inLog = 0; }
-        ~ipk() { if (!outLog.empty()) outLog.clear(); inLog = 0; }
+        ipk() { reset(); }
+        ~ipk() { reset(); }
         void searchFile(std::string filename, int filetyp);
 
     private:
-        void setStr(unsigned char *&out, const char *in, int length);
-        void setInt(unsigned char *&out, unsigned int in, int length);
+        void reset();
         template<typename... Args>
         std::string formatStr(const char *in, Args... args);
         void searchIPK(std::string root, std::string name, unsigned char *fdat, unsigned fsiz);
@@ -24,7 +23,7 @@ class ipk : protected blzss {
                   unsigned level, unsigned char *out);
 
         std::string outLog;
-        sstream *inLog;
+        sstream inLog;
 };
 
 #endif

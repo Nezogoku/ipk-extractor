@@ -6,19 +6,23 @@
 ///Struct for custom stringstream
 struct sstream {
     sstream() :
-        str_beg(""), ssub(""), isub(-1) {}
+        str_beg(""), ssub(""), isub(-1), str_pos(0) {}
     sstream(const std::string str) :
-        str_beg(str), ssub(""), isub(-1) {}
-    sstream(const unsigned char *str = 0, const unsigned siz = 0) :
-        str_beg(std::string((char*)str, siz)), ssub(""), isub(-1) {}
-    sstream(const sstream &s) :
-        str_beg(s.str_beg), ssub(s.ssub), isub(s.isub) {}
+        str_beg(str), ssub(""), isub(-1), str_pos(0) {}
+    sstream(const unsigned char *str, const unsigned siz) :
+        str_beg(std::string((const char*)str, siz)), ssub(""), isub(-1), str_pos(0) {}
+    sstream(const sstream &s)
+        { copy(s); }
     sstream(sstream &&s) :
-        sstream{s} { s.~sstream(); }
+        sstream{s} {}
     ~sstream() { reset(); }
 
     sstream& operator=(const sstream &s) { copy(s); return *this; }
-    sstream& operator=(sstream &&s) { copy((const sstream)s); s.~sstream(); return *this; }
+    sstream& operator=(sstream &&s) { copy((const sstream)s); return *this; }
+    
+    int tellPos() { return str_pos; }
+    
+    void seekPos(int p) { str_pos = p; }
 
     int getStream(const char *delim = 0) {
         bool quotes = 0;
@@ -39,7 +43,9 @@ struct sstream {
         if (pos0 == std::string::npos) { reset(); return 0; }
         
         if (delim) {
+            int tmp = get_whitespace(str_beg, pos0);
             pos1 = str_beg.find(delim, str_pos);
+            if (tmp < pos1) pos1 = tmp;
         }
         else {
             while ((pos1 = get_whitespace(str_beg, pos1)) != std::string::npos) {
@@ -114,6 +120,7 @@ struct sstream {
             str_beg = s.str_beg;
             ssub = s.ssub;
             isub = s.isub;
+            str_pos = s.str_pos;
         }
 };
 
