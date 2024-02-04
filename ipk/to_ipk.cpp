@@ -21,6 +21,10 @@ int ipk::toIPK(std::string iroot, unsigned ialign, unsigned ientries, unsigned l
     set_int(out + 0x04, ialign);
     set_int(out + 0x08, ientries);
     set_int(out + 0x0C, dat_offs);
+    
+    //Universal compression bool thing specifically because
+    //uniform_tex.ipk allows all compression
+    bool uni_keep_comp = (level > 0 && ientries > 600);
 
     //Get and apply entry info
     for (int e = 0; e < ientries; ++e) {
@@ -124,8 +128,8 @@ int ipk::toIPK(std::string iroot, unsigned ialign, unsigned ientries, unsigned l
         //Set compression
         fsize = rsize;
         if (fext != "ipk") compress(fdata, rsize, out + dat_offs, fsize);
-
-        if (fsize >= rsize) {
+        
+        if (!uni_keep_comp && (fsize >= rsize)) {
             for (int c = 0; c < fsize; ++c) {
                 out[dat_offs + c] = (c < rsize) ? fdata[c] : 0;
             }
