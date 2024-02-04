@@ -41,5 +41,6 @@ Each extension will be appended with '.new' to prevent overwrites.
 
 # (de)compression
 Slightly-edited Saxman decompression and compression codes pulled from https://segaretro.org/Saxman_compression because Sega.
+
 Recompression isn't always one-to-one with the original compressed file.
-    Some files in media.ipk have two completely different ending bytes after compression.
+Some files in media.ipk have two completely different ending bytes after compression.
