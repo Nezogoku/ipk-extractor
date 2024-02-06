@@ -7,8 +7,8 @@
 
 class ipk : protected blzss {
     public:
-        ipk() { reset(); }
-        ~ipk() { reset(); }
+        ipk() = default;
+        ~ipk() = default;
         void searchFile(std::string filename, int filetyp);
 
     private:
